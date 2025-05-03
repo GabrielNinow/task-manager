@@ -138,7 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function formatDateTime(dateString, timeString) {
         if (!dateString) return '';
-        const date = new Date(dateString);
+        
+        // Parse the date string and create a date object in local timezone
+        const [year, month, day] = dateString.split('-');
+        const date = new Date(year, month - 1, day);
+        
+        // Format the date in local timezone
         let formattedDate = date.toLocaleDateString('en-US', { 
             month: 'short', 
             day: 'numeric',
