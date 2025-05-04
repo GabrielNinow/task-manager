@@ -1,11 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // UI Elements
     const loginPage = document.getElementById('loginPage');
     const taskManagerPage = document.getElementById('taskManagerPage');
     const googleLoginBtn = document.getElementById('googleLoginBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const userEmail = document.getElementById('userEmail');
     const createTaskBtn = document.getElementById('createTaskBtn');
+    const alarmSound = document.getElementById('alarmSound');
+    const debugAlarmBtn = document.getElementById('debugAlarmBtn');
     
     const taskInput = document.getElementById('taskInput');
     const dueDate = document.getElementById('dueDate');
@@ -30,34 +31,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalClose = deleteModal.querySelector('.modal-close');
     const modalBackground = deleteModal.querySelector('.modal-background');
 
+    const audioPermissionBox = document.getElementById('audioPermissionBox');
+    const enableAudioBtn = document.getElementById('enableAudioBtn');
+    let audioPermissionGranted = false;
+
     let tasks = [];
     let currentDateFilter = 'all';
     let currentTagFilter = 'all';
     let currentStatusFilter = 'all';
     let taskToDelete = null;
+    let alarmInterval = null;
+    let notifiedTasks = new Set();
 
-    // Initialize page visibility
     loginPage.style.display = 'block';
     taskManagerPage.style.display = 'none';
 
-    // Authentication State Observer
-    auth.onAuthStateChanged((user) => {
+    auth.onAuthStateChanged(async (user) => {
         if (user) {
-            // User is signed in
             loginPage.style.display = 'none';
             taskManagerPage.style.display = 'block';
             userEmail.textContent = user.email;
             loadTasks(user.uid);
+            
+            const hasPermission = await checkAudioPermission();
+            if (!hasPermission) {
+                audioPermissionBox.style.display = 'block';
+            }
         } else {
-            // User is signed out
             loginPage.style.display = 'block';
             taskManagerPage.style.display = 'none';
             tasks = [];
             renderTasks();
+            audioPermissionBox.style.display = 'none';
         }
     });
 
-    // Google Sign In
     googleLoginBtn.addEventListener('click', () => {
         const provider = new firebase.auth.GoogleAuthProvider();
         auth.signInWithPopup(provider)
@@ -66,15 +74,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
 
-    // Logout
     logoutBtn.addEventListener('click', () => {
+        if (alarmInterval) {
+            clearInterval(alarmInterval);
+        }
+        notifiedTasks.clear();
         auth.signOut()
             .catch((error) => {
                 alert('Error signing out: ' + error.message);
             });
     });
 
-    // Load tasks from Firestore
     function loadTasks(userId) {
         if (!userId) return;
 
@@ -91,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     });
                     renderTasks();
+                    startAlarmCheck();
                 },
                 (error) => {
                     alert('Error loading tasks: ' + error.message);
@@ -98,7 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
             );
     }
 
-    // Save task to Firestore
     function saveTask(task) {
         const userId = auth.currentUser.uid;
         return db.collection('tasks').add({
@@ -108,17 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Delete task from Firestore
     function deleteTask(taskId) {
         return db.collection('tasks').doc(taskId).delete();
     }
 
-    // Update task in Firestore
     function updateTask(taskId, updates) {
         return db.collection('tasks').doc(taskId).update(updates);
     }
 
-    // Create Task Modal
     createTaskBtn.addEventListener('click', () => {
         createTaskModal.classList.add('is-active');
         taskInput.focus();
@@ -139,10 +146,13 @@ document.addEventListener('DOMContentLoaded', () => {
     addTaskBtn.addEventListener('click', () => {
         const taskText = taskInput.value.trim();
         if (taskText) {
+            const dueDate = document.getElementById('dueDate').value;
+            const dueTime = document.getElementById('dueTime').value;
+            
             const task = {
                 text: taskText,
-                dueDate: dueDate.value,
-                dueTime: dueTime.value,
+                dueDate: dueDate,
+                dueTime: dueTime,
                 tag: tagSelect.value,
                 completed: false
             };
@@ -212,12 +222,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function isTaskExpired(task) {
         if (!task.dueDate) return false;
         const now = new Date();
-        const taskDate = new Date(task.dueDate);
-        if (task.dueTime) {
-            const [hours, minutes] = task.dueTime.split(':');
-            taskDate.setHours(parseInt(hours), parseInt(minutes));
+        const taskDate = new Date(task.dueDate + 'T00:00:00');
+
+        if (taskDate > now) {
+            return false;
         }
-        return taskDate < now && !task.completed;
+
+        if (taskDate.toDateString() === now.toDateString() && task.dueTime) {
+            const [hours, minutes] = task.dueTime.split(':');
+            const taskDateTime = new Date(taskDate);
+            taskDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            
+            return taskDateTime < now && !task.completed;
+        }
+
+        console.log('Task is in the past, expired');
+        return !task.completed;
     }
 
     function isTaskInDateRange(task, dateFilter) {
@@ -322,5 +342,103 @@ document.addEventListener('DOMContentLoaded', () => {
 
             taskList.appendChild(taskItem);
         });
+    }
+
+    function startAlarmCheck() {
+        if (alarmInterval) {
+            clearInterval(alarmInterval);
+        }
+        
+        alarmInterval = setInterval(checkUpcomingTasks, 10000); 
+    }
+
+    function checkUpcomingTasks() {
+        const now = new Date();
+        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60000);
+
+        tasks.forEach(task => {
+            if (task.completed || !task.dueDate || !task.dueTime || notifiedTasks.has(task.id)) {
+                return;
+            }
+
+            const taskDateTime = new Date(task.dueDate + 'T' + task.dueTime);
+            
+            if (taskDateTime <= fiveMinutesFromNow && taskDateTime > now) {
+                playAlarm(task);
+            }
+        });
+    }
+
+    async function checkAudioPermission() {
+        try {
+            const audio = new Audio();
+            audio.volume = 0;
+            await audio.play();
+            audio.pause();
+            audioPermissionGranted = true;
+            audioPermissionBox.style.display = 'none';
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    enableAudioBtn.addEventListener('click', async () => {
+        try {
+            const audio = new Audio();
+            audio.volume = 0;
+            await audio.play();
+            audio.pause();
+            audioPermissionGranted = true;
+            audioPermissionBox.style.display = 'none';
+        } catch (error) {
+            alert('Please allow audio permissions in your browser settings to enable task alarms.');
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+    });
+
+    function playAlarm(task) {
+        const taskDateTime = new Date(task.dueDate + 'T' + task.dueTime);
+        const now = new Date();
+        const timeUntilDue = Math.ceil((taskDateTime - now) / 60000);
+        
+        let timeMessage;
+        if (timeUntilDue === 0) {
+            timeMessage = 'is due now!';
+        } else if (timeUntilDue === 1) {
+            timeMessage = 'is due in 1 minute!';
+        } else {
+            timeMessage = `is due in ${timeUntilDue} minutes!`;
+        }
+
+        alarmSound.currentTime = 0;
+        
+        const playPromise = alarmSound.play();
+        
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    alert(`Task Due Soon!\n\n"${task.text}" ${timeMessage}\n\nDue at: ${task.dueTime}`);
+                })
+                .catch(error => {
+                    if (error.name === 'NotAllowedError') {
+                        audioPermissionBox.style.display = 'block';
+                    }
+                });
+        }
+
+        if (Notification.permission === "granted") {
+            new Notification("Task Due Soon", {
+                body: `"${task.text}" ${timeMessage}\nDue at: ${task.dueTime}`,
+                icon: "https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css"
+            });
+        }
+
+        notifiedTasks.add(task.id);
     }
 }); 
