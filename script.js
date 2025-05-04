@@ -1,4 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // UI Elements
+    const loginPage = document.getElementById('loginPage');
+    const taskManagerPage = document.getElementById('taskManagerPage');
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const userEmail = document.getElementById('userEmail');
+    
     const taskInput = document.getElementById('taskInput');
     const dueDate = document.getElementById('dueDate');
     const dueTime = document.getElementById('dueTime');
@@ -17,13 +24,93 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalClose = deleteModal.querySelector('.modal-close');
     const modalBackground = deleteModal.querySelector('.modal-background');
 
-    let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+    let tasks = [];
     let currentDateFilter = 'all';
     let currentTagFilter = 'all';
     let currentStatusFilter = 'all';
     let taskToDelete = null;
 
-    renderTasks();
+    // Initialize page visibility
+    loginPage.style.display = 'block';
+    taskManagerPage.style.display = 'none';
+
+    // Authentication State Observer
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            // User is signed in
+            loginPage.style.display = 'none';
+            taskManagerPage.style.display = 'block';
+            userEmail.textContent = user.email;
+            loadTasks(user.uid);
+        } else {
+            // User is signed out
+            loginPage.style.display = 'block';
+            taskManagerPage.style.display = 'none';
+            tasks = [];
+            renderTasks();
+        }
+    });
+
+    // Google Sign In
+    googleLoginBtn.addEventListener('click', () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider)
+            .catch((error) => {
+                alert('Error signing in: ' + error.message);
+            });
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', () => {
+        auth.signOut()
+            .catch((error) => {
+                alert('Error signing out: ' + error.message);
+            });
+    });
+
+    // Load tasks from Firestore
+    function loadTasks(userId) {
+        if (!userId) return;
+
+        db.collection('tasks')
+            .where('userId', '==', userId)
+            .orderBy('createdAt', 'desc')
+            .onSnapshot(
+                (snapshot) => {
+                    tasks = [];
+                    snapshot.forEach((doc) => {
+                        tasks.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    renderTasks();
+                },
+                (error) => {
+                    alert('Error loading tasks: ' + error.message);
+                }
+            );
+    }
+
+    // Save task to Firestore
+    function saveTask(task) {
+        const userId = auth.currentUser.uid;
+        return db.collection('tasks').add({
+            ...task,
+            userId,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+
+    // Delete task from Firestore
+    function deleteTask(taskId) {
+        return db.collection('tasks').doc(taskId).delete();
+    }
+
+    // Update task in Firestore
+    function updateTask(taskId, updates) {
+        return db.collection('tasks').doc(taskId).update(updates);
+    }
 
     addTaskBtn.addEventListener('click', addTask);
     taskInput.addEventListener('keypress', (e) => {
@@ -31,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
             addTask();
         }
     });
-
 
     dateFilter.addEventListener('change', () => {
         currentDateFilter = dateFilter.value;
@@ -69,10 +155,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     confirmDeleteBtn.addEventListener('click', () => {
         if (taskToDelete) {
-            tasks = tasks.filter(t => t.id !== taskToDelete);
-            saveTasks();
-            renderTasks();
-            closeModal();
+            deleteTask(taskToDelete)
+                .then(() => {
+                    closeModal();
+                })
+                .catch((error) => {
+                    alert('Error deleting task: ' + error.message);
+                });
         }
     });
 
@@ -80,19 +169,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const taskText = taskInput.value.trim();
         if (taskText) {
             const task = {
-                id: Date.now(),
                 text: taskText,
                 dueDate: dueDate.value,
                 dueTime: dueTime.value,
                 tag: tagSelect.value,
                 completed: false
             };
-            tasks.push(task);
-            saveTasks();
-            taskInput.value = '';
-            dueDate.value = '';
-            dueTime.value = '';
-            renderTasks();
+            
+            saveTask(task)
+                .then(() => {
+                    taskInput.value = '';
+                    dueDate.value = '';
+                    dueTime.value = '';
+                })
+                .catch((error) => {
+                    alert('Error adding task: ' + error.message);
+                });
         }
     }
 
@@ -139,11 +231,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function formatDateTime(dateString, timeString) {
         if (!dateString) return '';
         
-        // Parse the date string and create a date object in local timezone
         const [year, month, day] = dateString.split('-');
         const date = new Date(year, month - 1, day);
         
-        // Format the date in local timezone
         let formattedDate = date.toLocaleDateString('en-US', { 
             month: 'short', 
             day: 'numeric',
@@ -198,10 +288,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const deleteBtn = taskItem.querySelector('.delete-btn');
 
             checkbox.addEventListener('change', () => {
-                task.completed = checkbox.checked;
-                taskItem.classList.toggle('completed', task.completed);
-                taskItem.classList.toggle('expired', !task.completed && isTaskExpired(task));
-                saveTasks();
+                updateTask(task.id, { completed: checkbox.checked })
+                    .catch((error) => {
+                        alert('Error updating task: ' + error.message);
+                    });
             });
 
             deleteBtn.addEventListener('click', () => {
@@ -211,9 +301,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
             taskList.appendChild(taskItem);
         });
-    }
-
-    function saveTasks() {
-        localStorage.setItem('tasks', JSON.stringify(tasks));
     }
 }); 
