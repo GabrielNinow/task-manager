@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const googleLoginBtn = document.getElementById('googleLoginBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const userEmail = document.getElementById('userEmail');
+    const createTaskBtn = document.getElementById('createTaskBtn');
     
     const taskInput = document.getElementById('taskInput');
     const dueDate = document.getElementById('dueDate');
@@ -17,6 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagFilter = document.getElementById('tagFilter');
     const statusFilter = document.getElementById('statusFilter');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+    
+    const createTaskModal = document.getElementById('createTaskModal');
+    const cancelCreateTaskBtn = document.getElementById('cancelCreateTask');
+    const createTaskModalClose = createTaskModal.querySelector('.modal-close');
+    const createTaskModalBackground = createTaskModal.querySelector('.modal-background');
     
     const deleteModal = document.getElementById('deleteModal');
     const cancelDeleteBtn = document.getElementById('cancelDelete');
@@ -112,10 +118,48 @@ document.addEventListener('DOMContentLoaded', () => {
         return db.collection('tasks').doc(taskId).update(updates);
     }
 
-    addTaskBtn.addEventListener('click', addTask);
+    // Create Task Modal
+    createTaskBtn.addEventListener('click', () => {
+        createTaskModal.classList.add('is-active');
+        taskInput.focus();
+    });
+
+    function closeCreateTaskModal() {
+        createTaskModal.classList.remove('is-active');
+        taskInput.value = '';
+        dueDate.value = '';
+        dueTime.value = '';
+        tagSelect.value = 'remember';
+    }
+
+    createTaskModalClose.addEventListener('click', closeCreateTaskModal);
+    createTaskModalBackground.addEventListener('click', closeCreateTaskModal);
+    cancelCreateTaskBtn.addEventListener('click', closeCreateTaskModal);
+
+    addTaskBtn.addEventListener('click', () => {
+        const taskText = taskInput.value.trim();
+        if (taskText) {
+            const task = {
+                text: taskText,
+                dueDate: dueDate.value,
+                dueTime: dueTime.value,
+                tag: tagSelect.value,
+                completed: false
+            };
+            
+            saveTask(task)
+                .then(() => {
+                    closeCreateTaskModal();
+                })
+                .catch((error) => {
+                    alert('Error adding task: ' + error.message);
+                });
+        }
+    });
+
     taskInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            addTask();
+            addTaskBtn.click();
         }
     });
 
@@ -164,29 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
     });
-
-    function addTask() {
-        const taskText = taskInput.value.trim();
-        if (taskText) {
-            const task = {
-                text: taskText,
-                dueDate: dueDate.value,
-                dueTime: dueTime.value,
-                tag: tagSelect.value,
-                completed: false
-            };
-            
-            saveTask(task)
-                .then(() => {
-                    taskInput.value = '';
-                    dueDate.value = '';
-                    dueTime.value = '';
-                })
-                .catch((error) => {
-                    alert('Error adding task: ' + error.message);
-                });
-        }
-    }
 
     function isTaskExpired(task) {
         if (!task.dueDate) return false;

@@ -47,82 +47,61 @@
                 </div>
             </div>
         </div>
-        
-        <div class="box has-background-grey-darker">
-            <div class="field">
-                <label class="label">Task Name</label>
-                <div class="control">
-                    <input class="input" type="text" id="taskInput" placeholder="Enter task name">
-                </div>
-            </div>
-            <div class="field is-grouped">
-                <div class="control">
-                    <label class="label">Due Date</label>
-                    <input class="input" type="date" id="dueDate">
-                </div>
-                <div class="control">
-                    <label class="label">Due Time</label>
-                    <input class="input" type="time" id="dueTime" step="300">
-                </div>
-                <div class="control">
-                    <label class="label">Tag</label>
-                    <div class="select">
-                        <select id="tagSelect">
-                            <option value="remember">Remember</option>
-                            <option value="todo">To Do</option>
-                            <option value="insight">Insight</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="control">
-                    <label class="label">&nbsp;</label>
-                    <button class="button is-primary" id="addTaskBtn">Add Task</button>
-                </div>
-            </div>
-        </div>
 
         <div class="box has-background-grey-darker">
             <div class="filter-section">
-                <div class="field is-grouped is-grouped-multiline">
-                    <div class="control">
-                        <div class="select">
-                            <select id="dateFilter">
-                                <option value="all">All Dates</option>
-                                <option value="today">Today</option>
-                                <option value="tomorrow">Tomorrow</option>
-                                <option value="week">This Week</option>
-                                <option value="month">This Month</option>
-                                <option value="overdue">Overdue</option>
-                            </select>
+                <div class="field is-grouped is-grouped-multiline is-justify-content-space-between is-flex-direction-column-mobile">
+                    <div class="field is-grouped is-grouped-multiline">
+                        <div class="control mb-2-mobile">
+                            <div class="select">
+                                <select id="dateFilter">
+                                    <option value="all">All Dates</option>
+                                    <option value="today">Today</option>
+                                    <option value="tomorrow">Tomorrow</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                    <option value="overdue">Overdue</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control mb-2-mobile">
+                            <div class="select">
+                                <select id="tagFilter">
+                                    <option value="all">All Tags</option>
+                                    <option value="remember">Remember</option>
+                                    <option value="todo">To Do</option>
+                                    <option value="insight">Insight</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control mb-2-mobile">
+                            <div class="select">
+                                <select id="statusFilter">
+                                    <option value="all">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="expired">Expired</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div class="control">
-                        <div class="select">
-                            <select id="tagFilter">
-                                <option value="all">All Tags</option>
-                                <option value="remember">Remember</option>
-                                <option value="todo">To Do</option>
-                                <option value="insight">Insight</option>
-                            </select>
+                    <div class="field is-grouped is-grouped-multiline mt-2-mobile">
+                        <div class="control mb-2-mobile">
+                            <button class="button is-light" id="clearFiltersBtn">
+                                <span class="icon">
+                                    <i class="fas fa-times"></i>
+                                </span>
+                                <span>Clear Filters</span>
+                            </button>
                         </div>
-                    </div>
-                    <div class="control">
-                        <div class="select">
-                            <select id="statusFilter">
-                                <option value="all">All Status</option>
-                                <option value="active">Active</option>
-                                <option value="completed">Completed</option>
-                                <option value="expired">Expired</option>
-                            </select>
+                        <div class="control mb-2-mobile">
+                            <button id="createTaskBtn" class="button is-primary">
+                                <span class="icon">
+                                    <i class="fas fa-plus"></i>
+                                </span>
+                                <span>Create Task</span>
+                            </button>
                         </div>
-                    </div>
-                    <div class="control">
-                        <button class="button is-light" id="clearFiltersBtn">
-                            <span class="icon">
-                                <i class="fas fa-times"></i>
-                            </span>
-                            <span>Clear Filters</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -131,6 +110,46 @@
                 
             </div>
         </div>
+    </div>
+
+    <div class="modal" id="createTaskModal">
+        <div class="modal-background"></div>
+        <div class="modal-content">
+            <div class="box has-background-grey-darker">
+                <h3 class="title is-4 has-text-light">Create New Task</h3>
+                <div class="field">
+                    <label class="label has-text-light">Task Name</label>
+                    <div class="control">
+                        <input class="input" type="text" id="taskInput" placeholder="Enter task name">
+                    </div>
+                </div>
+                <div class="field is-grouped">
+                    <div class="control">
+                        <label class="label has-text-light">Due Date</label>
+                        <input class="input" type="date" id="dueDate">
+                    </div>
+                    <div class="control">
+                        <label class="label has-text-light">Due Time</label>
+                        <input class="input" type="time" id="dueTime" step="300">
+                    </div>
+                    <div class="control">
+                        <label class="label has-text-light">Tag</label>
+                        <div class="select">
+                            <select id="tagSelect">
+                                <option value="remember">Remember</option>
+                                <option value="todo">To Do</option>
+                                <option value="insight">Insight</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="buttons is-right mt-4">
+                    <button class="button is-light" id="cancelCreateTask">Cancel</button>
+                    <button class="button is-primary" id="addTaskBtn">Add Task</button>
+                </div>
+            </div>
+        </div>
+        <button class="modal-close is-large" aria-label="close"></button>
     </div>
 
     <div class="modal" id="deleteModal">
